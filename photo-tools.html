@@ -36,7 +36,7 @@
 
 
   /* ---------- three panes ---------- */
-  .app{display:grid;grid-template-columns:296px minmax(0,1fr) 352px;height:calc(100vh - 56px)}
+  .app{display:grid;grid-template-columns:324px minmax(0,1fr) 352px;height:calc(100vh - 56px)}
   .pane{overflow-y:auto;overscroll-behavior:contain;padding:16px}
   .pane.left{border-right:1px solid var(--line);background:var(--surface)}
   .pane.right{border-left:1px solid var(--line);background:var(--surface);padding-bottom:0;display:flex;flex-direction:column}
@@ -67,17 +67,26 @@
 
   /* ---------- groups ---------- */
   .glist{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
-  .grow{display:grid;grid-template-columns:10px 1fr auto auto auto;align-items:center;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
+  .grow{display:grid;grid-template-columns:10px 1fr auto auto auto auto auto;align-items:center;min-height:34px;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
   .grow:hover{background:var(--surface-2)}
   .grow.on{background:var(--surface-2);border-color:var(--line-strong)}
   .grow .sw{width:10px;height:10px;border-radius:50%;background:var(--faint)}
-  .grow .gn{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .grow .gc{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .grow .ico{border:0;background:none;color:var(--faint);cursor:pointer;font-size:13px;line-height:1;padding:4px;border-radius:4px}
-  .grow .ico:hover{color:var(--text);background:var(--surface-3)}
-  .grow .ico.del:hover{color:var(--danger)}
-  .grow .ico:disabled{opacity:.3;cursor:default}
+  .grow .gn{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+  .grow .gpath{display:block;font-size:10.5px;font-weight:400;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grow .gc{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:18px;text-align:right}
+  .ico{border:0;background:none;color:var(--faint);cursor:pointer;font-size:13px;line-height:1;padding:4px;border-radius:4px}
+  .ico:hover{color:var(--text);background:var(--surface-3)}
+  .ico.del:hover{color:var(--danger)}
+  .ico:disabled{opacity:.3;cursor:default}
   .gact{display:flex;gap:8px;flex-wrap:wrap}
+  .srow{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:8px;padding:6px 10px 6px 30px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;position:relative}
+  .srow::before{content:"";position:absolute;left:15px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .srow:hover{background:var(--surface-2)}
+  .srow.on{background:var(--surface-2);border-color:var(--line-strong)}
+  .srow .sn{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow.on .sn{color:var(--text)}
+  .clipbar{display:flex;gap:6px;margin-bottom:8px}
+  .clipbar .ghost{flex:1}
 
   /* ---------- controls ---------- */
   .ghost{padding:7px 12px;border:1px solid var(--line-strong);background:transparent;color:var(--text);border-radius:var(--r);font-size:13px;cursor:pointer}
@@ -224,9 +233,9 @@
       <h2>Photos</h2>
       <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose photos">
         <strong>Drop photos here</strong>
-        <small>or click to browse. JPG, PNG, WebP, HEIC, AVIF, GIF, BMP</small>
+        <small>a zip of labeled folders, or loose photos.<br>JPG, PNG, WebP, HEIC, AVIF, GIF, BMP</small>
       </div>
-      <input type="file" id="picker" multiple accept="image/*,.jfif,.avif,.heic,.heif,.tif,.tiff">
+      <input type="file" id="picker" multiple accept="image/*,.jfif,.avif,.heic,.heif,.tif,.tiff,.zip,application/zip">
       <div class="filecount">
         <span></span>
         <button class="ghost sm" id="clearBtn" style="display:none">Clear all</button>
@@ -234,13 +243,13 @@
     </div>
 
     <div class="section">
-      <h2>Groups <span>one recipe each</span></h2>
+      <h2>Groups <span>one folder each</span></h2>
       <div class="glist" id="glist"></div>
       <div class="gact">
         <button class="ghost sm" id="addGroup">New group</button>
-        <button class="ghost sm" id="autoSort" disabled>Auto-sort by shape</button>
+        <button class="ghost sm" id="autoSort" disabled>Split all by shape</button>
       </div>
-      <p class="hint" id="groupNote">Every photo starts in the first group. Select photos in the filmstrip to move them.</p>
+      <p class="hint" id="groupNote">Drop in a zip and each folder becomes a group that keeps its path. Use ⧉ to split a group into subgroups by shape, or + to add one by hand.</p>
     </div>
   </aside>
 
@@ -301,6 +310,12 @@
           <button class="ghost sm" id="presetSave">Save</button>
           <button class="ghost sm" id="presetDel" title="Delete the preset chosen above" disabled>Delete</button>
         </div>
+        <div class="clipbar">
+          <button class="ghost sm" id="clipCopy" title="Copy this recipe">Copy recipe</button>
+          <button class="ghost sm" id="clipPaste" title="Paste into the selected group" disabled>Paste</button>
+          <button class="ghost sm" id="clipPasteAll" title="Paste into every group and subgroup" disabled>Paste to all</button>
+        </div>
+        <p class="hint" id="clipNote"></p>
 
         <div class="step off" id="stepTrim">
           <label class="head"><input type="checkbox" id="trimOn"><span class="tg" aria-hidden="true"></span><b>Trim</b><span>white and transparent borders</span></label>
@@ -399,8 +414,8 @@
     <div class="footer">
       <label class="f" for="saveMode" style="margin-top:0">Save to</label>
       <select id="saveMode">
-        <option value="folder">A folder you pick</option>
         <option value="zip">One zip file</option>
+        <option value="folder">A folder you pick</option>
       </select>
       <p class="hint" id="saveNote"></p>
       <div class="estimate" id="estimate"></div>
@@ -425,9 +440,11 @@
      STATE
      ===================================================================== */
   var files = [];          // File[]
-  var groupOf = [];        // groupOf[i] = group id
-  var groups = [];         // [{id, name, recipe}]
-  var activeGroupId = null;
+  var filePath = [];       // filePath[i] = folder path from the zip, '' for loose files
+  var assign = [];         // assign[i] = SUBGROUP id (a photo lives in a subgroup)
+  var groups = [];         // [{id, name, path, color, subs:[{id, name, recipe}]}]
+  var activeSubId = null;  // the subgroup whose recipe the inspector edits
+  var copiedRecipe = null; // clipboard for copy/paste of a recipe
   var pvIndex = 0;         // photo shown in the preview
   var sel = new Set();     // selected photo indices in the strip
   var selAnchor = 0;
@@ -470,20 +487,93 @@
   drop.addEventListener('drop', function(e){ addFiles(e.dataTransfer.files); });
   picker.addEventListener('change', function(){ addFiles(picker.files); picker.value=''; });
   $('clearBtn').addEventListener('click', function(){
-    files = []; groupOf = []; sel.clear(); pvIndex = 0; pvBitmap = null; dragState = null; stripFilter = 'all';
+    files = []; filePath = []; assign = []; sel.clear(); pvIndex = 0; pvBitmap = null; dragState = null; stripFilter = 'all';
+    groups = []; addGroup('All photos', '', defaultRecipe('landscape'), true);
+    activeSubId = groups[0].subs[0].id;
     refreshAll();
   });
 
+  function isImageName(n){ return /\.(jpe?g|jfif|png|webp|gif|bmp|tiff?|avif|heic|heif)$/i.test(n); }
+  function isZip(f){ return /\.zip$/i.test(f.name) || f.type === 'application/zip' || f.type === 'application/x-zip-compressed'; }
+
+  // Add one photo, remembering the folder it came from. path '' means loose.
+  function pushFile(file, path, subId){
+    files.push(file); filePath.push(path || ''); assign.push(subId);
+  }
+
   function addFiles(list){
-    var added = 0;
-    Array.prototype.forEach.call(list, function(f){
-      if (/^image\//.test(f.type) || /\.(jpe?g|jfif|png|webp|gif|bmp|tiff?|avif|heic|heif)$/i.test(f.name)){
-        files.push(f); groupOf.push(activeGroupId || groups[0].id); added++;
-      }
-    });
-    if (added){
+    var arr = Array.prototype.slice.call(list);
+    var zips = arr.filter(isZip);
+    var loose = arr.filter(function(f){ return !isZip(f) && (/^image\//.test(f.type) || isImageName(f.name)); });
+
+    loose.forEach(function(f){ pushFile(f, '', activeSubId || groups[0].subs[0].id); });
+
+    if (zips.length){ importZips(zips); return; }   // async, refreshes when done
+    if (loose.length){
       if (anyHeic()) loadHeif().catch(function(){});
       refreshAll();
+    }
+  }
+
+  // Read one or more zips in the browser. Each folder inside becomes a group,
+  // keeping its full nested path so the output mirrors what went in.
+  async function importZips(zips){
+    var note = $('groupNote');
+    var addedTotal = 0;
+    for (var z = 0; z < zips.length; z++){
+      note.textContent = 'Reading ' + zips[z].name + '…';
+      var bundle;
+      try { bundle = await JSZip.loadAsync(zips[z]); }
+      catch(e){ note.textContent = 'Could not read ' + zips[z].name + '. Is it really a zip?'; continue; }
+
+      var entries = [];
+      bundle.forEach(function(relPath, entry){
+        if (entry.dir) return;
+        if (/(^|\/)__MACOSX\//.test(relPath)) return;          // Mac zip metadata
+        var base = relPath.split('/').pop();
+        if (!base || base.charAt(0) === '.') return;            // .DS_Store and friends
+        if (!isImageName(base)) return;
+        entries.push({path:relPath, entry:entry, base:base});
+      });
+      entries.sort(function(a,b){ return a.path < b.path ? -1 : a.path > b.path ? 1 : 0; });
+
+      for (var i = 0; i < entries.length; i++){
+        note.textContent = 'Unpacking ' + (i+1) + ' of ' + entries.length + ' from ' + zips[z].name + '…';
+        var parts = entries[i].path.split('/');
+        parts.pop();
+        var folder = parts.join('/');                            // full nested path, preserved
+        var g = groupForPath(folder);
+        var blob = await entries[i].entry.async('blob');
+        var f = new File([blob], entries[i].base, {type: blob.type || ''});
+        pushFile(f, folder, g.subs[0].id);
+        addedTotal++;
+        if (i % 12 === 0) await new Promise(function(r){ setTimeout(r, 0); });
+      }
+    }
+    // a zip import makes the starter group redundant if nothing ever landed in it
+    pruneEmptyGroups();
+    if (!subById(activeSubId)) activeSubId = groups[0].subs[0].id;
+    note.textContent = addedTotal
+      ? addedTotal + ' photo' + (addedTotal===1?'':'s') + ' unpacked into ' + groups.length + ' group' + (groups.length===1?'':'s') + ', one per folder. Each keeps its folder path on the way out.'
+      : 'No photos found in that zip.';
+    if (anyHeic()) loadHeif().catch(function(){});
+    refreshAll();
+  }
+
+  // Find or make the group that owns a folder path.
+  function groupForPath(path){
+    var hit = groups.filter(function(g){ return g.path === path; })[0];
+    if (hit){
+      // the starter group has no path, so root-level photos land there. Name it for what it is.
+      if (path === '' && hit.name === 'All photos') hit.name = 'Loose photos (no folder)';
+      return hit;
+    }
+    return addGroup(path, path, defaultRecipe('landscape'), true);
+  }
+  function pruneEmptyGroups(){
+    for (var i = groups.length - 1; i >= 0; i--){
+      if (groups.length <= 1) break;
+      if (groupCount(groups[i].id) === 0) groups.splice(i, 1);
     }
   }
 
@@ -503,123 +593,280 @@
      GROUPS
      ===================================================================== */
   function groupById(id){ return groups.filter(function(g){ return g.id === id; })[0] || null; }
-  function activeGroup(){ return groupById(activeGroupId) || groups[0]; }
-  function groupCount(id){ var n = 0; for (var i=0;i<groupOf.length;i++) if (groupOf[i] === id) n++; return n; }
+  function subById(id){
+    for (var i=0;i<groups.length;i++){
+      var hit = groups[i].subs.filter(function(sb){ return sb.id === id; })[0];
+      if (hit) return hit;
+    }
+    return null;
+  }
+  function groupOfSub(id){
+    for (var i=0;i<groups.length;i++){
+      if (groups[i].subs.some(function(sb){ return sb.id === id; })) return groups[i];
+    }
+    return null;
+  }
+  function activeSub(){ return subById(activeSubId) || groups[0].subs[0]; }
+  function activeGroup(){ return groupOfSub(activeSubId) || groups[0]; }
+  function activeRecipe(){ return activeSub().recipe; }
+  function groupOf(i){ return groupOfSub(assign[i]) || groups[0]; }       // group of photo i
+  function subCount(id){ var n = 0; for (var i=0;i<assign.length;i++) if (assign[i] === id) n++; return n; }
+  function groupCount(id){
+    var g = groupById(id); if (!g) return 0;
+    var n = 0; g.subs.forEach(function(sb){ n += subCount(sb.id); }); return n;
+  }
+  function hasSubs(g){ return g.subs.length > 1; }
+  // Groups are named by their full path so the output mirrors the input, but a long
+  // nested path is unreadable in a narrow list, so the row shows the folder itself.
+  function leafName(g){
+    if (!g.path) return g.name;
+    var parts = g.path.split('/').filter(Boolean);
+    return parts[parts.length-1] || g.name;
+  }
 
   var PALETTE = ['#e3a842','#6fb1d6','#9fcc7a','#d98ac6','#e0846a','#8aa7e8','#d6c46b','#7fd0c1'];
   var paletteN = 0;
-  function addGroup(name, recipe, silent){
-    var g = {id:uid('g'), name:name, color:PALETTE[paletteN++ % PALETTE.length], recipe:recipe || defaultRecipe('landscape')};
+  function addGroup(name, path, recipe, silent){
+    var g = {
+      id: uid('g'), name: name, path: path || '',
+      color: PALETTE[paletteN++ % PALETTE.length],
+      subs: [{id: uid('sb'), name: 'All', recipe: recipe || defaultRecipe('landscape')}]
+    };
     groups.push(g);
-    if (!silent){ activeGroupId = g.id; renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); }
+    if (!silent){ activeSubId = g.subs[0].id; renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); }
     return g;
+  }
+
+  // A subgroup is a styling bucket inside a group. It never adds a folder to the output.
+  function addSub(groupId, name, recipe, silent){
+    var g = groupById(groupId); if (!g) return null;
+    var sb = {id: uid('sb'), name: name, recipe: recipe || clone(g.subs[0].recipe)};
+    g.subs.push(sb);
+    if (!silent){ activeSubId = sb.id; renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); }
+    return sb;
+  }
+  function deleteSub(subId){
+    var g = groupOfSub(subId); if (!g || g.subs.length <= 1) return;
+    var fallback = g.subs.filter(function(sb){ return sb.id !== subId; })[0].id;
+    for (var i=0;i<assign.length;i++) if (assign[i] === subId) assign[i] = fallback;
+    g.subs = g.subs.filter(function(sb){ return sb.id !== subId; });
+    if (activeSubId === subId) activeSubId = fallback;
+    renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview(true);
   }
   function deleteGroup(id){
     if (groups.length <= 1) return;
     var idx = -1; groups.forEach(function(g, k){ if (g.id === id) idx = k; });
     if (idx < 0) return;
+    var dying = groups[idx];
     groups.splice(idx, 1);
-    var fallback = groups[0].id;
-    for (var i=0;i<groupOf.length;i++) if (groupOf[i] === id) groupOf[i] = fallback;
-    if (activeGroupId === id) activeGroupId = fallback;
+    var fallback = groups[0].subs[0].id;
+    var dyingSubs = dying.subs.map(function(sb){ return sb.id; });
+    for (var i=0;i<assign.length;i++) if (dyingSubs.indexOf(assign[i]) >= 0) assign[i] = fallback;
+    if (!subById(activeSubId)) activeSubId = fallback;
     if (stripFilter === id) stripFilter = 'all';
     renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview(true);
   }
   function renameGroup(id){
     var g = groupById(id); if (!g) return;
-    var n = window.prompt('Group name', g.name);
-    if (n && n.trim()){ g.name = n.trim(); renderGroups(); renderStrip(); loadRecipeToDom(); updatePreview(true); }
+    var n = window.prompt('Group name. This is also the output folder.', g.name);
+    if (n && n.trim()){
+      g.name = n.trim(); g.path = n.trim();
+      renderGroups(); renderStrip(); loadRecipeToDom(); updatePreview(true);
+    }
   }
-  function setActiveGroup(id){
-    if (activeGroupId === id) return;
-    activeGroupId = id;
+  function renameSub(subId){
+    var sb = subById(subId); if (!sb) return;
+    var n = window.prompt('Subgroup name. Styling only, it does not add a folder.', sb.name);
+    if (n && n.trim()){ sb.name = n.trim(); renderGroups(); renderStrip(); loadRecipeToDom(); }
+  }
+  function setActiveSub(id){
+    if (activeSubId === id) return;
+    activeSubId = id;
     $('presetSel').value = ''; $('presetDel').disabled = true;
-    // preview a photo that actually belongs to this group, so the recipe edits are visible
-    if (files.length && groupOf[pvIndex] !== id){
-      for (var i=0;i<files.length;i++) if (groupOf[i] === id){ pvIndex = i; pvBitmap = null; dragState = null; break; }
+    // jump the preview to a photo in this subgroup so recipe edits are visible
+    if (files.length && assign[pvIndex] !== id){
+      for (var i=0;i<files.length;i++) if (assign[i] === id){ pvIndex = i; pvBitmap = null; dragState = null; break; }
     }
     renderGroups(); loadRecipeToDom(); onSettingsChange(); markFrames(); updatePreview();
   }
-  function moveSelectedTo(id){
-    if (!sel.size || !groupById(id)) return;
-    sel.forEach(function(i){ groupOf[i] = id; });
+  function moveSelectedTo(subId){
+    if (!sel.size || !subById(subId)) return;
+    sel.forEach(function(i){ assign[i] = subId; });
     renderGroups(); renderStrip(); onSettingsChange(); updatePreview(true);
+  }
+
+  /* ---- copy and paste a recipe between subgroups ---- */
+  function copyRecipe(){
+    copiedRecipe = clone(activeRecipe());
+    var g = activeGroup();
+    $('clipNote').textContent = 'Copied the recipe from ' + leafName(g) + (hasSubs(g) ? ' / ' + activeSub().name : '') + '.';
+    refreshClipButtons();
+  }
+  function freshSizeIds(rec){ rec.resize.sizes.forEach(function(sz){ if (sz.custom) sz.id = uid('s'); }); return rec; }
+  function pasteRecipe(){
+    if (!copiedRecipe) return;
+    activeSub().recipe = freshSizeIds(clone(copiedRecipe));
+    loadRecipeToDom(); onSettingsChange(); updatePreview(true);
+    $('clipNote').textContent = 'Pasted into ' + leafName(activeGroup()) + '.';
+  }
+  function pasteRecipeAll(){
+    if (!copiedRecipe) return;
+    if (!window.confirm('Give every group and subgroup this same recipe?')) return;
+    var n = 0;
+    groups.forEach(function(g){ g.subs.forEach(function(sb){ sb.recipe = freshSizeIds(clone(copiedRecipe)); n++; }); });
+    loadRecipeToDom(); onSettingsChange(); updatePreview(true);
+    $('clipNote').textContent = 'Pasted into ' + n + ' recipe' + (n===1?'':'s') + '.';
+  }
+  function refreshClipButtons(){
+    $('clipPaste').disabled = !copiedRecipe;
+    $('clipPasteAll').disabled = !copiedRecipe;
   }
 
   function renderGroups(){
     var box = $('glist'); box.innerHTML = '';
     groups.forEach(function(g){
       var row = document.createElement('div');
-      row.className = 'grow' + (g.id === activeGroupId ? ' on' : '');
+      row.className = 'grow' + (g.subs.some(function(sb){ return sb.id === activeSubId; }) ? ' on' : '');
       row.setAttribute('role','button'); row.tabIndex = 0;
-      var n = groupCount(g.id);
       var sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = g.color; row.appendChild(sw);
-      var nm = document.createElement('span'); nm.className = 'gn'; nm.textContent = g.name; nm.title = g.name;
-      var cnt = document.createElement('span'); cnt.className = 'gc'; cnt.textContent = n + ' photo' + (n===1?'':'s');
+      var nm = document.createElement('span'); nm.className = 'gn'; nm.textContent = leafName(g);
+      nm.title = g.path ? 'Saves into ' + g.path + '/' : 'Saves into the top level of the output';
+      if (g.path && g.path.indexOf('/') >= 0){
+        var par = document.createElement('span'); par.className = 'gpath';
+        par.textContent = g.path.slice(0, g.path.lastIndexOf('/'));
+        nm.insertBefore(par, nm.firstChild);
+      }
+      var cnt = document.createElement('span'); cnt.className = 'gc'; cnt.textContent = groupCount(g.id);
+      var split = document.createElement('button'); split.className = 'ico'; split.type = 'button'; split.title = 'Split this group into subgroups by shape'; split.textContent = '⧉';
+      split.addEventListener('click', function(e){ e.stopPropagation(); splitGroupByShape(g.id); });
+      var addS = document.createElement('button'); addS.className = 'ico'; addS.type = 'button'; addS.title = 'Add a subgroup'; addS.textContent = '+';
+      addS.addEventListener('click', function(e){
+        e.stopPropagation();
+        var n = window.prompt('Subgroup name', 'Subgroup ' + (g.subs.length + 1));
+        if (n && n.trim()) addSub(g.id, n.trim());
+      });
       var ren = document.createElement('button'); ren.className = 'ico'; ren.type = 'button'; ren.title = 'Rename'; ren.textContent = '✎';
       ren.addEventListener('click', function(e){ e.stopPropagation(); renameGroup(g.id); });
       var del = document.createElement('button'); del.className = 'ico del'; del.type = 'button'; del.title = 'Delete group (its photos move to the first group)'; del.textContent = '×';
       del.disabled = groups.length <= 1;
       del.addEventListener('click', function(e){ e.stopPropagation(); deleteGroup(g.id); });
-      row.appendChild(nm); row.appendChild(cnt); row.appendChild(ren); row.appendChild(del);
-      row.addEventListener('click', function(){ setActiveGroup(g.id); });
-      row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setActiveGroup(g.id); } });
+      row.appendChild(nm); row.appendChild(cnt); row.appendChild(split); row.appendChild(addS); row.appendChild(ren); row.appendChild(del);
+      row.addEventListener('click', function(){ setActiveSub(g.subs[0].id); });
+      row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setActiveSub(g.subs[0].id); } });
       box.appendChild(row);
+
+      // subgroup rows only appear once a group actually has more than one
+      if (hasSubs(g)){
+        g.subs.forEach(function(sb){
+          var sr = document.createElement('div');
+          sr.className = 'srow' + (sb.id === activeSubId ? ' on' : '');
+          sr.setAttribute('role','button'); sr.tabIndex = 0;
+          var sn = document.createElement('span'); sn.className = 'sn'; sn.textContent = sb.name; sn.title = sb.name;
+          var sc = document.createElement('span'); sc.className = 'gc'; sc.textContent = subCount(sb.id);
+          var sren = document.createElement('button'); sren.className = 'ico'; sren.type = 'button'; sren.title = 'Rename subgroup'; sren.textContent = '✎';
+          sren.addEventListener('click', function(e){ e.stopPropagation(); renameSub(sb.id); });
+          var sdel = document.createElement('button'); sdel.className = 'ico del'; sdel.type = 'button'; sdel.title = 'Delete subgroup (its photos move to the first one)'; sdel.textContent = '×';
+          sdel.addEventListener('click', function(e){ e.stopPropagation(); deleteSub(sb.id); });
+          sr.appendChild(sn); sr.appendChild(sc); sr.appendChild(sren); sr.appendChild(sdel);
+          sr.addEventListener('click', function(){ setActiveSub(sb.id); });
+          sr.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setActiveSub(sb.id); } });
+          box.appendChild(sr);
+        });
+      }
     });
-    $('recipeFor').textContent = 'for ' + activeGroup().name;
+
+    var g0 = activeGroup();
+    $('recipeFor').textContent = 'for ' + leafName(g0) + (hasSubs(g0) ? ' / ' + activeSub().name : '');
+
+    // move-to dropdown, grouped by group so subgroups read in context
     var mv = $('moveSel'); mv.innerHTML = '';
     var ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Move selected to…'; mv.appendChild(ph);
-    groups.forEach(function(g){ var o = document.createElement('option'); o.value = g.id; o.textContent = g.name; mv.appendChild(o); });
+    groups.forEach(function(g){
+      if (hasSubs(g)){
+        var og = document.createElement('optgroup'); og.label = leafName(g);
+        g.subs.forEach(function(sb){ var o = document.createElement('option'); o.value = sb.id; o.textContent = sb.name; og.appendChild(o); });
+        mv.appendChild(og);
+      } else {
+        var o = document.createElement('option'); o.value = g.subs[0].id; o.textContent = leafName(g); mv.appendChild(o);
+      }
+    });
     mv.disabled = !sel.size;
+    refreshClipButtons();
   }
 
   $('addGroup').addEventListener('click', function(){
-    var n = window.prompt('Name for the new group', 'Group ' + (groups.length + 1));
-    if (n && n.trim()) addGroup(n.trim(), defaultRecipe('landscape'));
+    var n = window.prompt('Name for the new group. This is also its output folder.', 'Group ' + (groups.length + 1));
+    if (n && n.trim()) addGroup(n.trim(), n.trim(), defaultRecipe('landscape'));
   });
 
   // ---- auto-sort by shape ----
   var dims = new WeakMap();  // File -> {w,h}
   function shapeOf(w, h){ var r = w/h; return r > 1.15 ? 'landscape' : r < 0.87 ? 'portrait' : 'square'; }
 
+  async function measureAll(note){
+    for (var i=0;i<files.length;i++){
+      if (!dims.has(files[i])){
+        if (note) note.textContent = 'Reading photo sizes… ' + (i+1) + ' of ' + files.length;
+        try { await makeThumb(files[i]); } catch(e){}
+      }
+    }
+  }
+
+  // Split one group into subgroups by shape. Photos stay in the group, so the
+  // output folder never changes; only the recipe they follow does.
+  async function splitGroupByShape(groupId){
+    var g = groupById(groupId); if (!g || running) return;
+    var note = $('groupNote');
+    await measureAll(note);
+    var names = {landscape:'Landscape', portrait:'Portrait', square:'Square'};
+    var mine = [];
+    for (var i=0;i<files.length;i++) if (groupOf(i).id === groupId) mine.push(i);
+    if (!mine.length){ note.textContent = 'That group has no photos to split.'; return; }
+
+    var buckets = {};
+    mine.forEach(function(i){
+      var d = dims.get(files[i]); if (!d) return;
+      buckets[shapeOf(d.w, d.h)] = true;
+    });
+    var shapes = Object.keys(buckets);
+    if (shapes.length < 2){ note.textContent = leafName(g) + ' is all one shape, so there is nothing to split.'; return; }
+
+    var subFor = {};
+    shapes.forEach(function(sh, k){
+      var existing = g.subs.filter(function(sb){ return sb.name === names[sh]; })[0];
+      subFor[sh] = existing || (k === 0 && subCount(g.subs[0].id) === groupCount(g.id) && g.subs.length === 1
+        ? (g.subs[0].name = names[sh], g.subs[0].recipe = defaultRecipe(sh), g.subs[0])
+        : addSub(g.id, names[sh], defaultRecipe(sh), true));
+    });
+    mine.forEach(function(i){
+      var d = dims.get(files[i]); if (!d) return;
+      assign[i] = subFor[shapeOf(d.w, d.h)].id;
+    });
+    // drop any subgroup the split left empty
+    g.subs = g.subs.filter(function(sb, k){ return subCount(sb.id) > 0 || k === 0; });
+    if (!subById(activeSubId)) activeSubId = g.subs[0].id;
+    note.textContent = leafName(g) + ' split into ' + g.subs.length + ' subgroups by shape. They all still save into the same folder.';
+    renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview(true);
+  }
+
   $('autoSort').addEventListener('click', async function(){
     if (!files.length || running) return;
     var btn = $('autoSort'); btn.disabled = true;
-    var note = $('groupNote');
     try {
-      for (var i=0;i<files.length;i++){
-        if (!dims.has(files[i])){
-          note.textContent = 'Reading photo sizes… ' + (i+1) + ' of ' + files.length;
-          try { await makeThumb(files[i]); } catch(e){}
-        }
-      }
-      var names = {landscape:'Landscape', portrait:'Portrait', square:'Square'};
-      var byShape = {};
-      files.forEach(function(f, i){
-        var d = dims.get(f); if (!d) return;
-        var sh = shapeOf(d.w, d.h);
-        if (!byShape[sh]){
-          var existing = groups.filter(function(g){ return g.name.toLowerCase() === names[sh].toLowerCase(); })[0];
-          byShape[sh] = existing || addGroup(names[sh], defaultRecipe(sh), true);
-        }
-        groupOf[i] = byShape[sh].id;
-      });
-      groups.slice().forEach(function(g){ if (groups.length > 1 && groupCount(g.id) === 0) groups.splice(groups.indexOf(g), 1); });
-      if (!groupById(activeGroupId)) activeGroupId = groups[0].id;
-      if (stripFilter !== 'all' && !groupById(stripFilter)) stripFilter = 'all';
-      note.textContent = 'Sorted by shape. Portrait groups start with the portrait and story sizes, landscape with banner and gallery, square with square. Adjust any recipe as you like.';
-      renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview(true);
+      await measureAll($('groupNote'));
+      for (var k = 0; k < groups.length; k++) await splitGroupByShape(groups[k].id);
+      $('groupNote').textContent = 'Every group split by shape where there was more than one shape. Folders are unchanged.';
     } finally { btn.disabled = !files.length; }
   });
 
   /* =====================================================================
-     RECIPE EDITOR  (DOM <-> activeGroup().recipe)
+     RECIPE EDITOR  (DOM <-> activeSub().recipe)
      ===================================================================== */
   var RECIPE_FIELDS = ['trimOn','trimTol','trimPad','trimAnyColor','resizeOn','resizeMode','fitMode','anchor','padColor','noUpscale','sizeSuffix','scalePct','pctSuffix','format','quality','bgColor','naming','prefix'];
   var loadingDom = false;
 
   function loadRecipeToDom(){
-    var r = activeGroup().recipe;
+    var r = activeRecipe();
     loadingDom = true;
     $('trimOn').checked = r.trim.on; $('trimTol').value = r.trim.tolerance; $('trimPad').value = r.trim.pad; $('trimAnyColor').checked = r.trim.anyColor;
     $('resizeOn').checked = r.resize.on; $('resizeMode').value = r.resize.mode; $('fitMode').value = r.resize.fit; $('anchor').value = r.resize.anchor;
@@ -629,12 +876,13 @@
     $('naming').value = r.output.naming; $('prefix').value = r.output.prefix;
     renderSizes();
     loadingDom = false;
-    $('recipeFor').textContent = 'for ' + activeGroup().name;
+    var g = activeGroup();
+    $('recipeFor').textContent = 'for ' + leafName(g) + (hasSubs(g) ? ' / ' + activeSub().name : '');
   }
 
   function readDomToRecipe(){
     if (loadingDom) return;
-    var r = activeGroup().recipe;
+    var r = activeRecipe();
     r.trim.on = $('trimOn').checked;
     r.trim.tolerance = Math.min(255, Math.max(0, parseInt($('trimTol').value,10) || 0));
     r.trim.pad = Math.max(0, parseInt($('trimPad').value,10) || 0);
@@ -650,7 +898,7 @@
   RECIPE_FIELDS.forEach(function(id){ $(id).addEventListener('input', onSettingsChange); $(id).addEventListener('change', onSettingsChange); });
 
   function renderSizes(){
-    var r = activeGroup().recipe, box = $('sizes'); box.innerHTML = '';
+    var r = activeRecipe(), box = $('sizes'); box.innerHTML = '';
     r.resize.sizes.forEach(function(p, i){
       var row = document.createElement('label'); row.className = 'size-row';
       var cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = p.on;
@@ -670,16 +918,16 @@
     var n = $('newName').value.trim() || 'Custom';
     var w = parseInt($('newW').value,10), h = parseInt($('newH').value,10);
     if (!w || !h || w < 1 || h < 1){ $('newW').focus(); return; }
-    activeGroup().recipe.resize.sizes.push({id:uid('s'), name:n, w:w, h:h, on:true, custom:true});
+    activeRecipe().resize.sizes.push({id:uid('s'), name:n, w:w, h:h, on:true, custom:true});
     $('newName').value=''; $('newW').value=''; $('newH').value='';
     renderSizes(); onSettingsChange();
   });
 
-  function activeSizes(recipe){ return (recipe || activeGroup().recipe).resize.sizes.filter(function(p){ return p.on; }); }
+  function activeSizes(recipe){ return (recipe || activeRecipe()).resize.sizes.filter(function(p){ return p.on; }); }
 
   function onSettingsChange(){
     readDomToRecipe();
-    var r = activeGroup().recipe;
+    var r = activeRecipe();
     $('stepTrim').classList.toggle('off', !r.trim.on);
     $('stepResize').classList.toggle('off', !r.resize.on);
     var scaleMode = r.resize.mode === 'scale';
@@ -701,29 +949,37 @@
     schedulePreview();
   }
 
-  function groupCanRun(g){
-    var r = g.recipe;
+  function subCanRun(sb){
+    var r = sb.recipe;
     if (r.resize.on && r.resize.mode === 'fixed' && !activeSizes(r).length) return false;
     return true;
   }
-  function canRun(){ return files.length > 0 && groups.every(groupCanRun); }
+  function canRun(){
+    if (!files.length) return false;
+    return groups.every(function(g){
+      return g.subs.every(function(sb){ return subCount(sb.id) === 0 || subCanRun(sb); });
+    });
+  }
 
   function updateEstimate(){
     var el = $('estimate');
     if (!files.length){ el.textContent = ''; return; }
-    var total = 0, px = 0, bad = [], used = 0;
+    var total = 0, px = 0, bad = [], usedGroups = 0;
     groups.forEach(function(g){
-      var n = groupCount(g.id); if (!n) return;
-      used++;
-      if (!groupCanRun(g)){ bad.push(g.name); return; }
-      var r = g.recipe;
-      if (r.resize.on && r.resize.mode === 'fixed'){
-        var sz = activeSizes(r); total += n * sz.length;
-        px += sz.reduce(function(a,s){ return a + s.w*s.h; },0) * n;
-      } else { total += n; px += n * 1500*1500; }
+      if (groupCount(g.id) === 0) return;
+      usedGroups++;
+      g.subs.forEach(function(sb){
+        var n = subCount(sb.id); if (!n) return;
+        if (!subCanRun(sb)){ bad.push(leafName(g) + (hasSubs(g) ? ' / ' + sb.name : '')); return; }
+        var r = sb.recipe;
+        if (r.resize.on && r.resize.mode === 'fixed'){
+          var sz = activeSizes(r); total += n * sz.length;
+          px += sz.reduce(function(a,x){ return a + x.w*x.h; },0) * n;
+        } else { total += n; px += n * 1500*1500; }
+      });
     });
     var mb = px * 0.15 / 1048576;
-    var msg = total + ' file' + (total===1?'':'s') + ' out across ' + used + ' group' + (used===1?'':'s') +
+    var msg = total + ' file' + (total===1?'':'s') + ' out across ' + usedGroups + ' folder' + (usedGroups===1?'':'s') +
       ', roughly ' + (mb > 1024 ? (mb/1024).toFixed(1)+' GB' : Math.round(mb)+' MB') + '.';
     var mc = manualCount();
     if (mc) msg += ' ' + mc + ' photo' + (mc===1?' has':'s have') + ' a hand-placed crop window.';
@@ -749,15 +1005,15 @@
     var p = loadPresets(); if (!p[n]) return;
     var rec = clone(p[n]);
     rec.resize.sizes.forEach(function(s){ if (s.custom) s.id = uid('s'); });
-    activeGroup().recipe = rec;
-    loadRecipeToDom(); onSettingsChange();
+    activeSub().recipe = rec;
+    loadRecipeToDom(); onSettingsChange(); updatePreview(true);
     $('presetDel').disabled = false;
-    $('recipeFor').textContent = 'for ' + activeGroup().name + ' (preset "' + n + '")';
+    $('recipeFor').textContent = 'for ' + leafName(activeGroup()) + ' (preset "' + n + '")';
   });
   $('presetSave').addEventListener('click', function(){
     var n = window.prompt('Preset name', $('presetSel').value || activeGroup().name);
     if (!n || !n.trim()) return;
-    var p = loadPresets(); p[n.trim()] = clone(activeGroup().recipe);
+    var p = loadPresets(); p[n.trim()] = clone(activeRecipe());
     if (!storePresets(p)){ alert('Could not save. This browser is blocking storage for this page.'); return; }
     renderPresetSelect(); $('presetSel').value = n.trim(); $('presetDel').disabled = false;
   });
@@ -993,6 +1249,17 @@
     return stripExt(file.name);
   }
   function cleanSlug(s){ return s.replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-').toLowerCase() || 'group'; }
+  // Keep the folder path the photo arrived in, one segment at a time.
+  // Subgroups deliberately add nothing here: they are styling only.
+  function groupFolder(g){
+    if (!g.path) return '';
+    return g.path.split('/').filter(Boolean).map(cleanSlug).join('/') + '/';
+  }
+  function outFolder(g, recipe, size){
+    var sizeDir = (recipe.resize.on && recipe.resize.mode === 'fixed' && size && activeSizes(recipe).length > 1)
+      ? sizeFolder(size) + '/' : '';
+    return groupFolder(g) + sizeDir;
+  }
   function sizeFolder(size){ return cleanSlug(size.name) + '-' + size.w + 'x' + size.h; }
   function outName(file, index, recipe, size, fmt){
     var base = baseName(file, index, recipe), suffix = '';
@@ -1026,10 +1293,10 @@
     if (cur){ s.value = cur.id; pvSizeByGroup[gid] = cur.id; }
     $('pvSizeWrap').style.display = sizes.length > 1 ? '' : 'none';
   }
-  $('pvSize').addEventListener('change', function(){ pvSizeByGroup[groupOf[pvIndex]] = $('pvSize').value; updatePreview(true); });
+  $('pvSize').addEventListener('change', function(){ pvSizeByGroup[assign[pvIndex]] = $('pvSize').value; updatePreview(true); });
   $('pvReset').addEventListener('click', function(){
-    var f = files[pvIndex], gid = groupOf[pvIndex], g = groupById(gid);
-    var sz = g ? pvSize(gid, g.recipe) : null;
+    var f = files[pvIndex], sbid = assign[pvIndex], sb = subById(sbid);
+    var sz = sb ? pvSize(sbid, sb.recipe) : null;
     if (f && sz){ clearManual(f, sz); updateEstimate(); markFrames(); updatePreview(true); }
   });
 
@@ -1062,8 +1329,9 @@
       showPvTools(false, false, false);
       return;
     }
-    var file = files[pvIndex], gid = groupOf[pvIndex];
-    var g = groupById(gid) || groups[0], recipe = g.recipe;
+    var file = files[pvIndex], sbid = assign[pvIndex];
+    var sb = subById(sbid) || groups[0].subs[0];
+    var g = groupOfSub(sb.id) || groups[0], recipe = sb.recipe;
     if (!pvBitmap || pvForFile !== file || !keepBitmap){
       try {
         if (pvBitmap && pvBitmap.close) pvBitmap.close();
@@ -1089,7 +1357,7 @@
     var s = drawInto(oc, src, iw, ih, 420, 280);
 
     var fmt = outFormat(file, recipe), fill = fillFor(fmt.mime, recipe);
-    var res, label = file.name + ' in ' + g.name, coverShown = false, note = '', size = null;
+    var res, label = file.name + ' in ' + leafName(g) + (hasSubs(g) ? ' / ' + sb.name : ''), coverShown = false, note = '', size = null;
     if (st.skip){
       note = 'Entirely background, so it would be skipped.';
       res = src;
@@ -1099,8 +1367,8 @@
         $('pvEmpty').style.display = 'block'; $('pvEmpty').textContent = 'Pick at least one output size for ' + g.name + '.';
         $('pvPair').style.display = 'none'; showPvTools(false, false, false); return;
       }
-      renderPvSizeSelect(gid, recipe);
-      size = pvSize(gid, recipe);
+      renderPvSizeSelect(sbid, recipe);
+      size = pvSize(sbid, recipe);
       var o = {fit:recipe.resize.fit, anchor:recipe.resize.anchor, padColor:recipe.resize.padColor, noUpscale:recipe.resize.noUpscale, fill:fill, manual:getManual(file, size)};
       if (o.fit === 'cover'){
         if (o.anchor === 'smart'){
@@ -1122,7 +1390,10 @@
       res = renderFlat(src, fill);
     }
     if (!coverShown) showPvTools(false, false, false);
-    if (!st.skip) note = 'Saves as ' + outName(file, pvIndex, recipe, size, fmt) + (fmt.forced ? ' (browsers cannot write ' + extOf(file.name).toUpperCase() + ', so PNG)' : '');
+    if (!st.skip){
+      var folder = outFolder(g, recipe, size);
+      note = 'Saves as ' + folder + outName(file, pvIndex, recipe, size, fmt) + (fmt.forced ? ' (browsers cannot write ' + extOf(file.name).toUpperCase() + ', so PNG)' : '');
+    }
     $('pvLabel').textContent = ': ' + label;
     $('pvNote').textContent = note;
     $('outDim').textContent = res.width + '×' + res.height;
@@ -1216,7 +1487,9 @@
 
   function visibleIndices(){
     var out = [];
-    for (var i=0;i<files.length;i++) if (stripFilter === 'all' || groupOf[i] === stripFilter) out.push(i);
+    for (var i=0;i<files.length;i++){
+      if (stripFilter === 'all' || groupOf(i).id === stripFilter || assign[i] === stripFilter) out.push(i);
+    }
     return out;
   }
 
@@ -1227,7 +1500,7 @@
     if (!files.length){ $('stripNote').textContent = ''; return; }
 
     var tabs = $('gtabs'); tabs.innerHTML = '';
-    [{id:'all', name:'All', n:files.length}].concat(groups.map(function(g){ return {id:g.id, name:g.name, n:groupCount(g.id), color:g.color}; })).forEach(function(t){
+    [{id:'all', name:'All', n:files.length}].concat(groups.map(function(g){ return {id:g.id, name:leafName(g), n:groupCount(g.id), color:g.color}; })).forEach(function(t){
       var b = document.createElement('button'); b.type = 'button';
       if (t.color){ var dot = document.createElement('i'); dot.style.background = t.color; b.appendChild(dot); }
       b.appendChild(document.createTextNode(t.name + ' ' + t.n));
@@ -1246,8 +1519,10 @@
       var b = document.createElement('button'); b.type = 'button'; b.className = 'frame'; b.dataset.i = i; b.title = file.name;
       b.innerHTML = '<span class="ph"></span><span class="dot"></span>';
       if (groups.length > 1){
-        var gg = groupById(groupOf[i]);
-        var gt = document.createElement('span'); gt.className = 'gt'; gt.style.background = gg ? gg.color : ''; gt.title = gg ? gg.name : ''; b.appendChild(gt);
+        var gg = groupOf(i), sbb = subById(assign[i]);
+        var gt = document.createElement('span'); gt.className = 'gt'; gt.style.background = gg ? gg.color : '';
+        gt.title = (gg ? gg.name : '') + (gg && hasSubs(gg) && sbb ? ' / ' + sbb.name : '');
+        b.appendChild(gt);
       }
       var fn = document.createElement('span'); fn.className = 'fn'; fn.textContent = file.name; b.appendChild(fn);
       b.addEventListener('click', function(e){ onFrameClick(i, e); });
@@ -1328,7 +1603,6 @@
     var zip = dir ? null : new JSZip();
     var dirCache = {};
     var skipped = [], writeFails = [], made = 0, forcedPng = 0;
-    var multiGroup = groups.filter(function(g){ return groupCount(g.id) > 0; }).length > 1;
 
     async function saveOne(blob, path){
       if (!dir){ zip.file(path, blob); return; }
@@ -1350,10 +1624,12 @@
 
     for (var i = 0; i < files.length; i++){
       if (cancelled) break;
-      var file = files[i], g = groupById(groupOf[i]) || groups[0], recipe = g.recipe;
+      var file = files[i];
+      var sb = subById(assign[i]) || groups[0].subs[0];
+      var g = groupOfSub(sb.id) || groups[0], recipe = sb.recipe;
       var gi = groupIndex[g.id] = (groupIndex[g.id] || 0);
-      groupIndex[g.id]++;
-      var gdir = multiGroup ? cleanSlug(g.name) + '/' : '';
+      groupIndex[g.id]++;                       // numbering runs per folder, not per subgroup
+      var gdir = groupFolder(g);
       var fmt = outFormat(file, recipe), fill = fillFor(fmt.mime, recipe);
 
       var bmp;
@@ -1448,22 +1724,25 @@
      ===================================================================== */
   function setupSaveMode(){
     var sel = $('saveMode');
-    var folderNote = 'You pick the folder once, then each photo is written as it finishes. Groups become subfolders.';
-    var zipNote = 'Everything arrives in one zip, with a folder per group inside.';
+    var folderNote = 'You pick the folder once, then each photo is written as it finishes. Your folder structure is rebuilt inside it.';
+    var zipNote = 'One zip back, with your original folder structure rebuilt inside it.';
+    sel.value = 'zip';                                  // zip is the default
     if (!FSA){
-      sel.value = 'zip';
       sel.querySelector('option[value=folder]').disabled = true;
-      $('saveNote').textContent = 'This browser only supports zip. Chrome or Edge can save straight to a folder.';
+      $('saveNote').textContent = 'This browser only supports zip. Chrome or Edge can also save straight to a folder.';
     } else {
-      $('saveNote').textContent = folderNote;
+      $('saveNote').textContent = zipNote;
     }
     sel.addEventListener('change', function(){
       $('saveNote').textContent = (sel.value === 'folder' && FSA) ? folderNote : zipNote;
     });
   }
 
-  addGroup('All photos', defaultRecipe('landscape'), true);
-  activeGroupId = groups[0].id;
+  addGroup('All photos', '', defaultRecipe('landscape'), true);
+  activeSubId = groups[0].subs[0].id;
+  $('clipCopy').addEventListener('click', copyRecipe);
+  $('clipPaste').addEventListener('click', pasteRecipe);
+  $('clipPasteAll').addEventListener('click', pasteRecipeAll);
   renderGroups(); loadRecipeToDom(); renderPresetSelect(); onSettingsChange(); setupSaveMode();
 })();
 </script>
