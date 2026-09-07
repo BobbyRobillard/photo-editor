@@ -67,7 +67,7 @@
 
   /* ---------- groups ---------- */
   .glist{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
-  .grow{display:grid;grid-template-columns:10px 1fr auto auto auto auto auto;align-items:center;min-height:34px;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
+  .grow{display:grid;grid-template-columns:10px 1fr auto auto auto auto auto auto;align-items:center;min-height:34px;gap:8px;padding:8px 10px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
   .grow:hover{background:var(--surface-2)}
   .grow.on{background:var(--surface-2);border-color:var(--line-strong)}
   .grow .sw{width:10px;height:10px;border-radius:50%;background:var(--faint)}
@@ -250,6 +250,7 @@
       <div class="gact">
         <button class="ghost sm" id="addGroup">New group</button>
         <button class="ghost sm" id="autoSort" disabled>Split all by shape</button>
+        <button class="ghost sm" id="autoGallery" disabled>Auto gallery</button>
       </div>
       <p class="hint" id="groupNote">Drop in a zip and each folder becomes a group that keeps its path. Use ⧉ to split a group into subgroups by shape, or + to add one by hand.</p>
     </div>
@@ -407,6 +408,8 @@
               <option value="prefix">Rename in order</option>
             </select>
             <input type="text" id="prefix" placeholder="lawn-care-photo" value="photo" style="margin-top:8px;display:none">
+            <label class="check"><input type="checkbox" id="pathInName" checked> Put the folder path in the file name</label>
+            <p class="hint" id="nameSample"></p>
             <p class="hint" id="keepNote"></p>
           </div>
         </div>
@@ -474,7 +477,7 @@
     return {
       trim:   {on:false, tolerance:12, pad:0, anyColor:false},
       resize: {on:true, mode:'fixed', sizes:libSizes(on), fit:'cover', anchor:'smart', padColor:'#ffffff', noUpscale:true, sizeSuffix:true, pct:50, pctSuffix:true},
-      output: {type:'image/jpeg', quality:90, bg:'#ffffff', naming:'keep', prefix:'photo'}
+      output: {type:'image/jpeg', quality:90, bg:'#ffffff', naming:'keep', prefix:'photo', pathInName:true}
     };
   }
 
@@ -583,7 +586,7 @@
     var n = files.length;
     $('fileCount').innerHTML = n ? '<b>' + n + '</b> photo' + (n===1?'':'s') + ' loaded' : 'No photos loaded';
     $('clearBtn').style.display = n ? 'block' : 'none';
-    $('autoSort').disabled = !n;
+    $('autoSort').disabled = !n; $('autoGallery').disabled = !n;
     if (pvIndex >= n) pvIndex = 0;
     renderGroups();
     renderStrip();
@@ -783,6 +786,8 @@
         var cnt = document.createElement('span'); cnt.className = 'gc'; cnt.textContent = groupCount(g.id);
         var split = document.createElement('button'); split.className = 'ico'; split.type = 'button'; split.title = 'Split into subgroups by shape'; split.textContent = '⧉';
         split.addEventListener('click', function(e){ e.stopPropagation(); splitGroupByShape(g.id); });
+        var gal = document.createElement('button'); gal.className = 'ico'; gal.type = 'button'; gal.title = 'Auto gallery: split evenly into tall and wide halves'; gal.textContent = '▦';
+        gal.addEventListener('click', function(e){ e.stopPropagation(); autoGallery(g.id); });
         var addS = document.createElement('button'); addS.className = 'ico'; addS.type = 'button'; addS.title = 'Add a subgroup'; addS.textContent = '+';
         addS.addEventListener('click', function(e){
           e.stopPropagation();
@@ -794,7 +799,7 @@
         var del = document.createElement('button'); del.className = 'ico del'; del.type = 'button'; del.title = 'Delete group (its photos move to the first group)'; del.textContent = '×';
         del.disabled = groups.length <= 1;
         del.addEventListener('click', function(e){ e.stopPropagation(); deleteGroup(g.id); });
-        row.appendChild(nm); row.appendChild(cnt); row.appendChild(split); row.appendChild(addS); row.appendChild(ren); row.appendChild(del);
+        row.appendChild(nm); row.appendChild(cnt); row.appendChild(split); row.appendChild(gal); row.appendChild(addS); row.appendChild(ren); row.appendChild(del);
         row.addEventListener('click', function(){ selectGroup(g.id); });
         row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectGroup(g.id); } });
       } else {
@@ -901,6 +906,52 @@
     renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview(true);
   }
 
+  // Split a group into two even halves for a gallery: the taller photos take the
+  // tall size, the wider ones take the wide size. Shape decides who goes where,
+  // but the halves stay even even when every photo is the same shape.
+  function galleryRecipe(which){
+    var r = defaultRecipe('landscape');
+    r.resize.sizes = libSizes([which === 'tall' ? 'port' : 'card']);
+    return r;
+  }
+  async function autoGallery(groupId){
+    var g = groupById(groupId); if (!g || running) return;
+    var note = $('groupNote');
+    await measureAll(note);
+    var mine = [];
+    for (var i=0;i<files.length;i++) if (groupOf(i).id === groupId && dims.get(files[i])) mine.push(i);
+    if (mine.length < 2){ note.textContent = leafName(g) + ' needs at least two photos for a gallery split.'; return; }
+
+    // tallest first, so the first half is the most portrait-leaning of the set
+    mine.sort(function(a, b){
+      var da = dims.get(files[a]), db = dims.get(files[b]);
+      return (da.w/da.h) - (db.w/db.h);
+    });
+    var tallN = Math.floor(mine.length / 2);      // odd counts give the extra to wide
+
+    var tallSub = g.subs.filter(function(sb){ return sb.name === 'Tall'; })[0];
+    var wideSub = g.subs.filter(function(sb){ return sb.name === 'Wide'; })[0];
+    if (!tallSub && g.subs.length === 1 && subCount(g.subs[0].id) === groupCount(g.id)){
+      tallSub = g.subs[0]; tallSub.name = 'Tall'; tallSub.recipe = galleryRecipe('tall');
+    }
+    if (!tallSub) tallSub = addSub(g.id, 'Tall', galleryRecipe('tall'), true);
+    if (!wideSub) wideSub = addSub(g.id, 'Wide', galleryRecipe('wide'), true);
+
+    mine.forEach(function(idx, k){ assign[idx] = (k < tallN ? tallSub : wideSub).id; });
+    g.subs = g.subs.filter(function(sb, k){ return subCount(sb.id) > 0 || k === 0; });
+    if (!subById(activeSubId)) activeSubId = g.subs[0].id;
+    note.textContent = leafName(g) + ' split into ' + tallN + ' tall and ' + (mine.length - tallN) +
+      ' wide for a gallery. Both still save into the same folder.';
+    selectSub(tallSub.id, g.id);
+  }
+
+  $('autoGallery').addEventListener('click', async function(){
+    if (!files.length || running) return;
+    var btn = $('autoGallery'); btn.disabled = true;
+    try { await autoGallery(activeGroup().id); }
+    finally { btn.disabled = !files.length; }
+  });
+
   $('autoSort').addEventListener('click', async function(){
     if (!files.length || running) return;
     var btn = $('autoSort'); btn.disabled = true;
@@ -914,7 +965,7 @@
   /* =====================================================================
      RECIPE EDITOR  (DOM <-> activeSub().recipe)
      ===================================================================== */
-  var RECIPE_FIELDS = ['trimOn','trimTol','trimPad','trimAnyColor','resizeOn','resizeMode','fitMode','anchor','padColor','noUpscale','sizeSuffix','scalePct','pctSuffix','format','quality','bgColor','naming','prefix'];
+  var RECIPE_FIELDS = ['trimOn','trimTol','trimPad','trimAnyColor','resizeOn','resizeMode','fitMode','anchor','padColor','noUpscale','sizeSuffix','scalePct','pctSuffix','format','quality','bgColor','naming','prefix','pathInName'];
   var loadingDom = false;
 
   function loadRecipeToDom(){
@@ -926,6 +977,7 @@
     $('scalePct').value = r.resize.pct; $('pctSuffix').checked = r.resize.pctSuffix;
     $('format').value = r.output.type; $('quality').value = r.output.quality; $('bgColor').value = r.output.bg;
     $('naming').value = r.output.naming; $('prefix').value = r.output.prefix;
+    $('pathInName').checked = r.output.pathInName !== false;
     renderSizes();
     loadingDom = false;
     var g = activeGroup();
@@ -945,6 +997,7 @@
     r.resize.pct = parseInt($('scalePct').value,10) || 50; r.resize.pctSuffix = $('pctSuffix').checked;
     r.output.type = $('format').value; r.output.quality = parseInt($('quality').value,10) || 90; r.output.bg = $('bgColor').value;
     r.output.naming = $('naming').value; r.output.prefix = $('prefix').value;
+    r.output.pathInName = $('pathInName').checked;
   }
 
   RECIPE_FIELDS.forEach(function(id){ $(id).addEventListener('input', onSettingsChange); $(id).addEventListener('change', onSettingsChange); });
@@ -993,6 +1046,10 @@
     $('qWrap').style.visibility = (r.output.type === 'image/png') ? 'hidden' : 'visible';
     $('bgField').style.display = r.output.type === 'image/jpeg' ? 'block' : 'none';
     $('prefix').style.display = r.output.naming === 'prefix' ? 'block' : 'none';
+    var sg = activeGroup();
+    $('nameSample').textContent = (r.output.pathInName && sg.path)
+      ? 'Names come out like ' + pathPrefix(sg) + 'photo-name.jpg'
+      : 'Names keep the photo\u2019s own name only.';
     $('keepNote').textContent = r.output.type === 'keep'
       ? 'Each photo is saved in the format it came in. HEIC, AVIF, GIF, BMP and TIFF cannot be written by a browser, so those become PNG.'
       : (!r.trim.on && !r.resize.on ? 'With trim and resize off, this group is a plain format converter.' : '');
@@ -1300,6 +1357,12 @@
     if (n === 'clean') return stripExt(file.name).replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-').toLowerCase() || 'photo';
     return stripExt(file.name);
   }
+  // photos/trees/tree.jpg -> photos-trees-tree.jpg. The folders stay in the zip as
+  // well, so the name is readable on its own once a file is pulled out of them.
+  function pathPrefix(g){
+    if (!g || !g.path) return '';
+    return g.path.split('/').filter(Boolean).map(cleanSlug).join('-') + '-';
+  }
   function cleanSlug(s){ return s.replace(/[^\w\- ]+/g,'').replace(/\s+/g,'-').toLowerCase() || 'group'; }
   // Keep the folder path the photo arrived in, one segment at a time.
   // Subgroups deliberately add nothing here: they are styling only.
@@ -1313,8 +1376,9 @@
     return groupFolder(g) + sizeDir;
   }
   function sizeFolder(size){ return cleanSlug(size.name) + '-' + size.w + 'x' + size.h; }
-  function outName(file, index, recipe, size, fmt){
+  function outName(file, index, recipe, size, fmt, g){
     var base = baseName(file, index, recipe), suffix = '';
+    if (recipe.output.pathInName) base = pathPrefix(g) + base;
     if (recipe.resize.on && recipe.resize.mode === 'fixed' && size && recipe.resize.sizeSuffix) suffix = '-' + size.w + 'x' + size.h;
     if (recipe.resize.on && recipe.resize.mode === 'scale' && recipe.resize.pctSuffix) suffix = '-' + recipe.resize.pct + 'pct';
     return base + suffix + '.' + fmt.ext;
@@ -1444,8 +1508,12 @@
     if (!coverShown) showPvTools(false, false, false);
     if (!st.skip){
       var folder = outFolder(g, recipe, size);
-      note = 'Saves as ' + folder + outName(file, pvIndex, recipe, size, fmt) + (fmt.forced ? ' (browsers cannot write ' + extOf(file.name).toUpperCase() + ', so PNG)' : '');
-    }
+      var fname = outName(file, pvIndex, recipe, size, fmt, g);
+      note = 'Saves as ' + folder + fname + (fmt.forced ? ' (browsers cannot write ' + extOf(file.name).toUpperCase() + ', so PNG)' : '');
+      // the naming rules cap a slug at 60 characters, so say when a name goes over
+      $('pvNote').className = fname.length > 60 ? 'pvnote warn' : 'pvnote';
+      note += '  (' + fname.length + ' characters' + (fname.length > 60 ? ', over the 60 limit' : '') + ')';
+    } else { $('pvNote').className = 'pvnote'; }
     $('pvLabel').textContent = ': ' + label;
     $('pvNote').textContent = note;
     $('outDim').textContent = res.width + '×' + res.height;
@@ -1715,7 +1783,8 @@
         if (st.skip){ addLog('skip', file.name, 'entirely background'); }
         else {
           var src = st.src, iw = bmpW(src), ih = bmpH(src);
-          var untouched = !st.trimmed && !recipe.resize.on && fmt.keep && recipe.output.naming === 'keep';
+          var wantsPath = recipe.output.pathInName && !!g.path;
+          var untouched = !st.trimmed && !recipe.resize.on && fmt.keep && recipe.output.naming === 'keep' && !wantsPath;
           if (untouched){
             await saveOne(file, gdir + file.name); made++;
             addLog('keep', gdir + file.name, iw0 + '×' + ih0 + ', copied as is');
@@ -1727,7 +1796,7 @@
               var size = sizes[j];
               o.manual = getManual(file, size);
               var cv = renderFixed(src, size, o);
-              var name = outName(file, gi, recipe, size, fmt);
+              var name = outName(file, gi, recipe, size, fmt, g);
               var path = gdir + (multiSize ? sizeFolder(size) + '/' : '') + name;
               await saveOne(await toBlob(cv, fmt.mime, recipe.output.quality/100), path); made++;
               addLog('done', path, cv.width + '×' + cv.height + (o.manual ? ', manual crop' : ''));
@@ -1735,13 +1804,13 @@
             if (fmt.forced) forcedPng++;
           } else if (recipe.resize.on){
             var sc = renderScale(src, recipe.resize.pct, fill);
-            var sn = gdir + outName(file, gi, recipe, null, fmt);
+            var sn = gdir + outName(file, gi, recipe, null, fmt, g);
             await saveOne(await toBlob(sc, fmt.mime, recipe.output.quality/100), sn); made++;
             addLog('done', sn, iw0 + '×' + ih0 + ' → ' + sc.width + '×' + sc.height);
             if (fmt.forced) forcedPng++;
           } else {
             var fc = renderFlat(src, fill);
-            var fnm = gdir + outName(file, gi, recipe, null, fmt);
+            var fnm = gdir + outName(file, gi, recipe, null, fmt, g);
             await saveOne(await toBlob(fc, fmt.mime, recipe.output.quality/100), fnm); made++;
             addLog(st.trimmed ? 'trim' : 'done', fnm, (st.trimmed ? iw0 + '×' + ih0 + ' → ' : '') + fc.width + '×' + fc.height);
             if (fmt.forced) forcedPng++;
