@@ -72,15 +72,15 @@
   .grow.on{background:var(--surface-2);border-color:var(--line-strong)}
   .grow .sw{width:10px;height:10px;border-radius:50%;background:var(--faint)}
   .grow .gn{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-  .grow .gpath{display:block;font-size:10.5px;font-weight:400;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .grow .gc{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:18px;text-align:right}
   .ico{border:0;background:none;color:var(--faint);cursor:pointer;font-size:13px;line-height:1;padding:4px;border-radius:4px}
   .ico:hover{color:var(--text);background:var(--surface-3)}
   .ico.del:hover{color:var(--danger)}
   .ico:disabled{opacity:.3;cursor:default}
   .gact{display:flex;gap:8px;flex-wrap:wrap}
-  .srow{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:8px;padding:6px 10px 6px 30px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;position:relative}
-  .srow::before{content:"";position:absolute;left:15px;top:0;bottom:0;width:1px;background:var(--line-strong)}
+  .srow{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--r);cursor:pointer;border:1px solid transparent}
+  .frow{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;padding:8px 10px 4px}
+  .frow .fn2{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .srow:hover{background:var(--surface-2)}
   .srow.on{background:var(--surface-2);border-color:var(--line-strong)}
   .srow .sn{font-size:12.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -174,6 +174,8 @@
   .gtabs button i{width:7px;height:7px;border-radius:50%;background:var(--faint);display:inline-block}
   .gtabs button:hover{color:var(--text);background:var(--surface-2)}
   .gtabs button[aria-selected=true]{background:var(--text);border-color:var(--text);color:var(--bg)}
+  .gtabs button.subpill{border-style:dashed;font-size:12px;padding:4px 10px}
+  .gtabs button.subpill[aria-selected=true]{background:var(--accent);border-color:var(--accent);border-style:solid;color:var(--accent-ink)}
   .stripsel{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
   .stripsel select{width:auto;padding:5px 28px 5px 9px;font-size:12.5px}
   .strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:12px;max-height:280px;overflow-y:auto;padding:2px}
@@ -664,6 +666,7 @@
     for (var i=0;i<assign.length;i++) if (dyingSubs.indexOf(assign[i]) >= 0) assign[i] = fallback;
     if (!subById(activeSubId)) activeSubId = fallback;
     if (stripFilter === id) stripFilter = 'all';
+    if (stripFilter !== 'all' && !groupById(stripFilter) && !subById(stripFilter)) stripFilter = 'all';
     renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview(true);
   }
   function renameGroup(id){
@@ -679,15 +682,30 @@
     var n = window.prompt('Subgroup name. Styling only, it does not add a folder.', sb.name);
     if (n && n.trim()){ sb.name = n.trim(); renderGroups(); renderStrip(); loadRecipeToDom(); }
   }
-  function setActiveSub(id){
-    if (activeSubId === id) return;
-    activeSubId = id;
-    $('presetSel').value = ''; $('presetDel').disabled = true;
-    // jump the preview to a photo in this subgroup so recipe edits are visible
-    if (files.length && assign[pvIndex] !== id){
-      for (var i=0;i<files.length;i++) if (assign[i] === id){ pvIndex = i; pvBitmap = null; dragState = null; break; }
+  // One selection drives both panes: picking on the left filters the filmstrip,
+  // and picking a pill in the middle selects that group's recipe on the left.
+  function selectSub(subId, filterId){
+    var sb = subById(subId); if (!sb) return;
+    var changedSub = activeSubId !== subId;
+    activeSubId = subId;
+    stripFilter = (filterId === undefined) ? subId : filterId;
+    if (changedSub){ $('presetSel').value = ''; $('presetDel').disabled = true; }
+    if (files.length && assign[pvIndex] !== subId){
+      for (var i=0;i<files.length;i++) if (assign[i] === subId){ pvIndex = i; pvBitmap = null; dragState = null; break; }
     }
-    renderGroups(); loadRecipeToDom(); onSettingsChange(); markFrames(); updatePreview();
+    sel.clear();
+    renderGroups(); renderStrip(); loadRecipeToDom(); onSettingsChange(); updatePreview();
+  }
+  function selectGroup(groupId){
+    var g = groupById(groupId); if (!g) return;
+    selectSub(g.subs[0].id, groupId);
+  }
+  function setActiveSub(id){ selectSub(id); }
+  function filterGroupId(){
+    if (stripFilter === 'all') return null;
+    if (groupById(stripFilter)) return stripFilter;
+    var g = groupOfSub(stripFilter);
+    return g ? g.id : null;
   }
   function moveSelectedTo(subId){
     if (!sel.size || !subById(subId)) return;
@@ -722,44 +740,75 @@
     $('clipPasteAll').disabled = !copiedRecipe;
   }
 
+  // Turn the flat list of groups into a folder tree, so tr-2026/job-a and
+  // tr-2026/job-b sit under one tr-2026 heading instead of repeating the path.
+  function buildTree(){
+    var root = {kids:{}, order:[], group:null};
+    groups.forEach(function(g){
+      var segs = g.path ? g.path.split('/').filter(Boolean) : ['\u0000' + g.id];
+      var node = root;
+      segs.forEach(function(seg){
+        if (!node.kids[seg]){
+          node.kids[seg] = {kids:{}, order:[], group:null, label: seg.charAt(0) === '\u0000' ? g.name : seg};
+          node.order.push(seg);
+        }
+        node = node.kids[seg];
+      });
+      node.group = g;
+    });
+    return root;
+  }
+  function treeCount(node){
+    var n = node.group ? groupCount(node.group.id) : 0;
+    node.order.forEach(function(k){ n += treeCount(node.kids[k]); });
+    return n;
+  }
+
   function renderGroups(){
     var box = $('glist'); box.innerHTML = '';
-    groups.forEach(function(g){
+    var fgid = filterGroupId();
+
+    function drawNode(node, depth){
+      var g = node.group;
       var row = document.createElement('div');
-      row.className = 'grow' + (g.subs.some(function(sb){ return sb.id === activeSubId; }) ? ' on' : '');
-      row.setAttribute('role','button'); row.tabIndex = 0;
-      var sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = g.color; row.appendChild(sw);
-      var nm = document.createElement('span'); nm.className = 'gn'; nm.textContent = leafName(g);
-      nm.title = g.path ? 'Saves into ' + g.path + '/' : 'Saves into the top level of the output';
-      if (g.path && g.path.indexOf('/') >= 0){
-        var par = document.createElement('span'); par.className = 'gpath';
-        par.textContent = g.path.slice(0, g.path.lastIndexOf('/'));
-        nm.insertBefore(par, nm.firstChild);
+      row.className = g ? 'grow' : 'frow';
+      row.style.paddingLeft = (10 + depth*14) + 'px';
+
+      if (g){
+        if (g.subs.some(function(sb){ return sb.id === activeSubId; }) || fgid === g.id) row.className += ' on';
+        row.setAttribute('role','button'); row.tabIndex = 0;
+        var sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = g.color; row.appendChild(sw);
+        var nm = document.createElement('span'); nm.className = 'gn'; nm.textContent = node.label;
+        nm.title = g.path ? 'Saves into ' + g.path + '/' : 'Saves into the top level of the output';
+        var cnt = document.createElement('span'); cnt.className = 'gc'; cnt.textContent = groupCount(g.id);
+        var split = document.createElement('button'); split.className = 'ico'; split.type = 'button'; split.title = 'Split into subgroups by shape'; split.textContent = '⧉';
+        split.addEventListener('click', function(e){ e.stopPropagation(); splitGroupByShape(g.id); });
+        var addS = document.createElement('button'); addS.className = 'ico'; addS.type = 'button'; addS.title = 'Add a subgroup'; addS.textContent = '+';
+        addS.addEventListener('click', function(e){
+          e.stopPropagation();
+          var n = window.prompt('Subgroup name', 'Subgroup ' + (g.subs.length + 1));
+          if (n && n.trim()) addSub(g.id, n.trim());
+        });
+        var ren = document.createElement('button'); ren.className = 'ico'; ren.type = 'button'; ren.title = 'Rename'; ren.textContent = '✎';
+        ren.addEventListener('click', function(e){ e.stopPropagation(); renameGroup(g.id); });
+        var del = document.createElement('button'); del.className = 'ico del'; del.type = 'button'; del.title = 'Delete group (its photos move to the first group)'; del.textContent = '×';
+        del.disabled = groups.length <= 1;
+        del.addEventListener('click', function(e){ e.stopPropagation(); deleteGroup(g.id); });
+        row.appendChild(nm); row.appendChild(cnt); row.appendChild(split); row.appendChild(addS); row.appendChild(ren); row.appendChild(del);
+        row.addEventListener('click', function(){ selectGroup(g.id); });
+        row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectGroup(g.id); } });
+      } else {
+        var fn = document.createElement('span'); fn.className = 'fn2'; fn.textContent = node.label; fn.title = node.label;
+        var fc = document.createElement('span'); fc.className = 'gc'; fc.textContent = treeCount(node);
+        row.appendChild(fn); row.appendChild(fc);
       }
-      var cnt = document.createElement('span'); cnt.className = 'gc'; cnt.textContent = groupCount(g.id);
-      var split = document.createElement('button'); split.className = 'ico'; split.type = 'button'; split.title = 'Split this group into subgroups by shape'; split.textContent = '⧉';
-      split.addEventListener('click', function(e){ e.stopPropagation(); splitGroupByShape(g.id); });
-      var addS = document.createElement('button'); addS.className = 'ico'; addS.type = 'button'; addS.title = 'Add a subgroup'; addS.textContent = '+';
-      addS.addEventListener('click', function(e){
-        e.stopPropagation();
-        var n = window.prompt('Subgroup name', 'Subgroup ' + (g.subs.length + 1));
-        if (n && n.trim()) addSub(g.id, n.trim());
-      });
-      var ren = document.createElement('button'); ren.className = 'ico'; ren.type = 'button'; ren.title = 'Rename'; ren.textContent = '✎';
-      ren.addEventListener('click', function(e){ e.stopPropagation(); renameGroup(g.id); });
-      var del = document.createElement('button'); del.className = 'ico del'; del.type = 'button'; del.title = 'Delete group (its photos move to the first group)'; del.textContent = '×';
-      del.disabled = groups.length <= 1;
-      del.addEventListener('click', function(e){ e.stopPropagation(); deleteGroup(g.id); });
-      row.appendChild(nm); row.appendChild(cnt); row.appendChild(split); row.appendChild(addS); row.appendChild(ren); row.appendChild(del);
-      row.addEventListener('click', function(){ setActiveSub(g.subs[0].id); });
-      row.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setActiveSub(g.subs[0].id); } });
       box.appendChild(row);
 
-      // subgroup rows only appear once a group actually has more than one
-      if (hasSubs(g)){
+      if (g && hasSubs(g)){
         g.subs.forEach(function(sb){
           var sr = document.createElement('div');
           sr.className = 'srow' + (sb.id === activeSubId ? ' on' : '');
+          sr.style.paddingLeft = (10 + (depth+1)*14 + 10) + 'px';
           sr.setAttribute('role','button'); sr.tabIndex = 0;
           var sn = document.createElement('span'); sn.className = 'sn'; sn.textContent = sb.name; sn.title = sb.name;
           var sc = document.createElement('span'); sc.className = 'gc'; sc.textContent = subCount(sb.id);
@@ -768,17 +817,20 @@
           var sdel = document.createElement('button'); sdel.className = 'ico del'; sdel.type = 'button'; sdel.title = 'Delete subgroup (its photos move to the first one)'; sdel.textContent = '×';
           sdel.addEventListener('click', function(e){ e.stopPropagation(); deleteSub(sb.id); });
           sr.appendChild(sn); sr.appendChild(sc); sr.appendChild(sren); sr.appendChild(sdel);
-          sr.addEventListener('click', function(){ setActiveSub(sb.id); });
-          sr.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); setActiveSub(sb.id); } });
+          sr.addEventListener('click', function(){ selectSub(sb.id); });
+          sr.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); selectSub(sb.id); } });
           box.appendChild(sr);
         });
       }
-    });
+      node.order.forEach(function(k){ drawNode(node.kids[k], depth + 1); });
+    }
+
+    var tree = buildTree();
+    tree.order.forEach(function(k){ drawNode(tree.kids[k], 0); });
 
     var g0 = activeGroup();
     $('recipeFor').textContent = 'for ' + leafName(g0) + (hasSubs(g0) ? ' / ' + activeSub().name : '');
 
-    // move-to dropdown, grouped by group so subgroups read in context
     var mv = $('moveSel'); mv.innerHTML = '';
     var ph = document.createElement('option'); ph.value = ''; ph.textContent = 'Move selected to…'; mv.appendChild(ph);
     groups.forEach(function(g){
@@ -1500,13 +1552,34 @@
     if (!files.length){ $('stripNote').textContent = ''; return; }
 
     var tabs = $('gtabs'); tabs.innerHTML = '';
-    [{id:'all', name:'All', n:files.length}].concat(groups.map(function(g){ return {id:g.id, name:leafName(g), n:groupCount(g.id), color:g.color}; })).forEach(function(t){
+    var fgid = filterGroupId();
+
+    var all = document.createElement('button'); all.type = 'button';
+    all.appendChild(document.createTextNode('All ' + files.length));
+    all.setAttribute('aria-selected', stripFilter === 'all' ? 'true' : 'false');
+    all.addEventListener('click', function(){ stripFilter = 'all'; sel.clear(); renderGroups(); renderStrip(); });
+    tabs.appendChild(all);
+
+    groups.forEach(function(g){
       var b = document.createElement('button'); b.type = 'button';
-      if (t.color){ var dot = document.createElement('i'); dot.style.background = t.color; b.appendChild(dot); }
-      b.appendChild(document.createTextNode(t.name + ' ' + t.n));
-      b.setAttribute('aria-selected', stripFilter === t.id ? 'true' : 'false');
-      b.addEventListener('click', function(){ stripFilter = t.id; sel.clear(); renderStrip(); });
+      var dot = document.createElement('i'); dot.style.background = g.color; b.appendChild(dot);
+      b.appendChild(document.createTextNode(leafName(g) + ' ' + groupCount(g.id)));
+      b.title = g.path || leafName(g);
+      b.setAttribute('aria-selected', fgid === g.id ? 'true' : 'false');
+      b.addEventListener('click', function(){ selectGroup(g.id); });
       tabs.appendChild(b);
+
+      // once a folder is showing, its subgroups get pills too so you can switch from here
+      if (hasSubs(g) && fgid === g.id){
+        g.subs.forEach(function(sb){
+          var sbb = document.createElement('button'); sbb.type = 'button'; sbb.className = 'subpill';
+          sbb.appendChild(document.createTextNode(sb.name + ' ' + subCount(sb.id)));
+          // mark it either when the strip is filtered to it, or when its recipe is the one being edited
+          sbb.setAttribute('aria-selected', (stripFilter === sb.id || (stripFilter === g.id && activeSubId === sb.id)) ? 'true' : 'false');
+          sbb.addEventListener('click', function(){ selectSub(sb.id); });
+          tabs.appendChild(sbb);
+        });
+      }
     });
 
     stripObserver = ('IntersectionObserver' in window) ? new IntersectionObserver(function(entries){
